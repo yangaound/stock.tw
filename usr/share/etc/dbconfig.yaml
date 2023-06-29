@@ -1,0 +1,8 @@
+stock-tw:
+  connect_kwargs:
+    db: stock-tw
+    host: 127.0.0.1
+    passwd: 'stock+123'
+    port: 3306
+    user: root
+  driver: MySQLdb

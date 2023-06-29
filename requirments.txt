@@ -1,0 +1,9 @@
+requests
+pandas
+lxml
+html5lib
+BeautifulSoup4
+mysqlclient
+petl
+pyyaml
+git+https://github.com/yangaound/dbman
