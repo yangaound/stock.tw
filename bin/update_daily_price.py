@@ -7,7 +7,8 @@ import traceback
 
 import numpy as np
 import pytz
-from 變易 import price, util
+
+from stock_tw.變易 import price, util
 
 
 def main(stime: datetime.datetime, etime: datetime.datetime):

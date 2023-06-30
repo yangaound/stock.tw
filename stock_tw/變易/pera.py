@@ -34,7 +34,7 @@ def extract(ts: datetime.datetime) -> pandas.DataFrame:
         tpex_df = pandas.DataFrame()
 
     df = pandas.concat([twse_df, tpex_df])
-    return df
+    return df[PERA_TB_COLs]
 
 
 def read_sql(
@@ -83,9 +83,7 @@ def _crawl_pera_from_twse(ts: datetime.datetime) -> pandas.DataFrame:
         "證券代號": util.SECURITY_ID_NAME,
     }
     df.rename(columns=column_mapping, inplace=True)
-    df[util.TIME_COL_NAME] = pandas.to_datetime(
-        datetime.datetime(ts.year, ts.month, ts.day)
-    )
+    df[util.TIME_COL_NAME] = pandas.to_datetime(datetime.datetime(ts.year, 12, 31))
     df.set_index(util.TIMED_INDEX_COLs, inplace=True)
 
     # Convert all the scalar to number
@@ -96,12 +94,14 @@ def _crawl_pera_from_twse(ts: datetime.datetime) -> pandas.DataFrame:
     df = df[df.columns[df.isnull().all() == False]]
 
     df["每股股利(註)"] = numpy.NaN
+    if "股利年度" not in df.columns:
+        df["股利年度"] = ts.year - 1911
 
     # check columns
     if set(PERA_TB_COLs) - set(df.columns):
         raise TypeError(f"Miss expected columns {set(PERA_TB_COLs) - set(df.columns)}")
 
-    return df
+    return df[PERA_TB_COLs]
 
 
 def _crawl_pera_from_tpex(ts: datetime.datetime) -> pandas.DataFrame:
@@ -139,9 +139,7 @@ def _crawl_pera_from_tpex(ts: datetime.datetime) -> pandas.DataFrame:
         "股票代號": util.SECURITY_ID_NAME,
     }
     df.rename(columns=column_mapping, inplace=True)
-    df[util.TIME_COL_NAME] = pandas.to_datetime(
-        datetime.datetime(ts.year, ts.month, ts.day)
-    )
+    df[util.TIME_COL_NAME] = pandas.to_datetime(datetime.datetime(ts.year, 12, 31))
     df.set_index(util.TIMED_INDEX_COLs, inplace=True)
 
     # Convert all the scalar to number

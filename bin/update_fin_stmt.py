@@ -5,7 +5,8 @@ import traceback
 
 import numpy as np
 import pytz
-from 變易 import fin_stmt, util
+
+from stock_tw.變易 import fin_stmt, util
 
 
 def main(ts: datetime.datetime):

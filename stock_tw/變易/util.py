@@ -74,7 +74,7 @@ def write_csv(new_df: pandas.DataFrame, file_path: str) -> int:
 
     df = pandas.concat([existing_df, new_df])
     df.drop_duplicates(inplace=True, keep="last")
-    df.sort_index()
+    df.sort_index(ascending=True, inplace=True)
     df.to_csv(file_path)
 
     return len(df) - len(existing_df)

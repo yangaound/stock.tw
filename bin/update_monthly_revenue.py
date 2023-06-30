@@ -5,7 +5,8 @@ import traceback
 
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from 變易 import revenue, util
+
+from stock_tw.變易 import revenue, util
 
 
 def main(ts: datetime.datetime):

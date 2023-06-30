@@ -2,7 +2,8 @@ import logging
 import traceback
 
 import numpy as np
-from 變易 import security, util
+
+from stock_tw.變易 import security, util
 
 
 def main():

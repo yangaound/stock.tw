@@ -83,7 +83,7 @@ def write_sqlite3(
 
     merged_df = pandas.concat([existing_df, df])
     merged_df.drop_duplicates(inplace=True, keep="last")
-    merged_df.sort_index()
+    merged_df.sort_index(ascending=True, inplace=True)
     merged_df.to_sql(table_name, con=conn, if_exists="replace")
 
     return len(merged_df) - len(existing_df)

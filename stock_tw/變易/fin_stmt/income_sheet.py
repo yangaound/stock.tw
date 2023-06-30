@@ -5,7 +5,8 @@ from typing import Union
 import MySQLdb
 import pandas
 from dateutil.relativedelta import relativedelta
-from 變易 import util
+
+from stock_tw.變易 import util
 
 INCOME_TB_NAME = "income_sheet"
 INCOME_TB_COLs: list[str] = util.CONF["損益表頭"]
@@ -46,7 +47,7 @@ def write_sqlite3(new_df: pandas.DataFrame, conn: sqlite3.Connection) -> int:
 
     df = pandas.concat([existing_df, new_df])
     df.drop_duplicates(inplace=True, keep="last")
-    df.sort_index()
+    df.sort_index(ascending=True, inplace=True)
     df.to_sql(INCOME_TB_NAME, con=conn, if_exists="replace")
 
     return len(df) - len(existing_df)

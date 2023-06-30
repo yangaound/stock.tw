@@ -7,7 +7,9 @@ import traceback
 
 import numpy as np
 import pytz
-from 變易 import pera, util
+from dateutil.relativedelta import relativedelta
+
+from stock_tw.變易 import pera, util
 
 
 def main(stime: datetime.datetime, etime: datetime.datetime):
@@ -42,12 +44,13 @@ def main(stime: datetime.datetime, etime: datetime.datetime):
             logging.info(f"Upsert table `{pera.PERA_TB_NAME}` {count} rows")
         except util.YiException as e:
             logging.warning(str(e))
+            stime += datetime.timedelta(days=1)
         except Exception:
             logging.error(traceback.format_exc())
         finally:
             db_proxy and db_proxy.close()
 
-        stime += datetime.timedelta(days=1)
+        stime += relativedelta(years=1)
         time.sleep(15)
 
 

@@ -4,7 +4,8 @@ from typing import Optional
 
 import pandas
 from dateutil.relativedelta import relativedelta
-from 變易 import fin_stmt, pera, price, revenue, security, util
+
+from stock_tw.變易 import fin_stmt, pera, price, revenue, security, util
 
 securities: pandas.DataFrame
 prices: pandas.DataFrame
@@ -14,6 +15,8 @@ income_sheets: pandas.DataFrame
 cumulate_income_sheets: pandas.DataFrame
 balance_sheets: pandas.DataFrame
 cash_flows: pandas.DataFrame
+pera_df: pandas.DataFrame
+
 
 datatime_range: dict[str, Optional[datetime.datetime]] = {
     "max_price": None,
@@ -32,24 +35,27 @@ _FIN_DATA_START_DT = datetime.datetime.today() - relativedelta(years=5)
 def refresh_securities(connection):
     global securities
     securities = security.read_sql(conn=connection)
+    securities.sort_index(ascending=True, inplace=True)
 
 
 def refresh_prices(
     connection,
-    dt: datetime.datetime = datetime.datetime.today() - relativedelta(days=10),
+    dt: datetime.datetime = datetime.datetime.today() - relativedelta(days=5),
 ):
     global prices
     prices = price.read_sql(conn=connection, start_time=dt)
+    prices.sort_index(ascending=True, inplace=True)
     datatime_range["max_price"] = max(ts for ts, code in prices.index)
     datatime_range["min_price"] = min(ts for ts, code in prices.index)
 
 
 def refresh_peras(
     connection,
-    dt: datetime.datetime = datetime.datetime.today() - relativedelta(days=10),
+    dt: datetime.datetime = datetime.datetime.today() - relativedelta(days=5),
 ):
     global peras
     peras = pera.read_sql(conn=connection, start_time=dt)
+    peras.sort_index(ascending=True, inplace=True)
     datatime_range["max_pera"] = max(ts for ts, code in peras.index)
     datatime_range["min_pera"] = min(ts for ts, code in peras.index)
 
@@ -59,6 +65,7 @@ def refresh_revenues(
 ):
     global revenues
     revenues = revenue.read_sql(conn=connection, start_time=dt)
+    revenues.sort_index(ascending=True, inplace=True)
     datatime_range["max_revenue"] = max(ts for ts, code in revenues.index)
     datatime_range["min_revenue"] = min(ts for ts, code in revenues.index)
 
@@ -66,13 +73,50 @@ def refresh_revenues(
 def refresh_fin_stmt(connection, dt: datetime.datetime = _FIN_DATA_START_DT):
     global income_sheets, cumulate_income_sheets, balance_sheets, cash_flows
     income_sheets = fin_stmt.income_sheet.read_sql(conn=connection, start_time=dt)
+    income_sheets.sort_index(ascending=True, inplace=True)
     cumulate_income_sheets = fin_stmt.cumulate_income_sheet.read_sql(
         conn=connection, start_time=dt
     )
+    cumulate_income_sheets.sort_index(ascending=True, inplace=True)
     balance_sheets = fin_stmt.balance_sheet.read_sql(conn=connection, start_time=dt)
+    balance_sheets.sort_index(ascending=True, inplace=True)
     cash_flows = fin_stmt.cash_flow.read_sql(conn=connection, start_time=dt)
+    cash_flows.sort_index(ascending=True, inplace=True)
     datatime_range["max_fin_stmt"] = max(ts for ts, code in balance_sheets.index)
     datatime_range["min_fin_stmt"] = min(ts for ts, code in balance_sheets.index)
+
+
+def refresh_pera_df(connection):
+    global pera_df
+
+    pera_df = peras.loc[datatime_range["max_pera"]]
+
+    sql = """
+    SELECT 
+        distinct `code`, `股利年度`, `殖利率(%)`
+    FROM `stock-tw`.pera
+    WHERE 1
+        AND `股利年度` > 90 
+        AND `殖利率(%)` > 0
+    ORDER BY `code`, `股利年度` DESC;
+    """
+    df = pandas.read_sql(sql, con=connection, index_col=[util.SECURITY_ID_NAME])
+    code_grouped_yields = collections.defaultdict(set)
+    for code, row in df.iterrows():
+        code_grouped_yields[code].add(int(row["股利年度"]))
+
+    now = datetime.datetime.now()
+    for code, row in df.iterrows():
+        years = sorted(code_grouped_yields[code], reverse=True)
+        year_count = 0
+        for i, year in enumerate(
+            range(now.year - 1912, now.year - 1912 - len(years), -1)
+        ):
+            if years[i] == year:
+                year_count += 1
+            else:
+                break
+        pera_df.loc[code, "股利連續N年"] = year_count
 
 
 # New DB session
@@ -83,6 +127,7 @@ refresh_prices(_connection)
 refresh_peras(_connection)
 refresh_revenues(_connection)
 refresh_fin_stmt(_connection)
+refresh_pera_df(_connection)
 # Close DB session
 _connection.close()
 
@@ -91,15 +136,16 @@ STOCK_COLs = ["name", "group"]
 PERA_COLs = [
     "殖利率(%)",
     "股利年度",
+    "股利連續N年",
     "本益比",
     "股價淨值比",
 ]  # "每股股利(註)"]
 PRICE_COLs = ["收盤價", "漲跌幅(%)"]
 FIN_PROFIT_COLs = [
-    "淨利率（%）",
-    "毛利率（%）",
-    "資產報酬率（%）",
-    "股東報酬率（%）",
+    "NIM(%)",
+    "GPM(%)",
+    "ROA(%)",
+    "ROE(%)",
     "負債比(%)",
 ]
 CUST_PROFIT_COLs = ["(C)營收合計", "(C)平均月營收", "(C)合計月數"]  # from revenues
@@ -123,14 +169,15 @@ EPSA_COLs = (
     ]
     + FIN_PROFIT_COLs
     + [
-        "毛利率(%)增加",
-        "淨利率(%）增加",
-        "資產報酬率(%)增加",
-        "股東報酬率(%)增加",
-        "負債比(%)增加",
-        "普通股股本增加",
-        "資產總計增加",
-        "權益總額增加",
+        "EPS(0)+",
+        "GPM(%)+",
+        "NIM(%)+",
+        "ROA(%)+",
+        "ROE(%)+",
+        "普通股股本+",
+        "負債比(%)+",
+        "資產總計+",
+        "權益總額+",
     ]
 )
 INCOME_SHEET_COLs = [
@@ -150,7 +197,6 @@ INCOME_SHEET_COLs = [
 fin_profits: pandas.DataFrame
 profit_df: pandas.DataFrame
 price_df: pandas.DataFrame
-pera_df: pandas.DataFrame
 epsa_df: pandas.DataFrame
 
 
@@ -179,15 +225,15 @@ def calculate_stmt_profits(columns=None) -> pandas.DataFrame:
 
     # 加入損益表["營業毛利（毛損）", "本期淨利（淨損）", "營業收入合計"]
     tmp = income_sheets[INCOME_SHEET_COLs].merge(tmp, on=util.TIMED_INDEX_COLs)
-    tmp["毛利率（%）"] = tmp["營業毛利（毛損）"] / tmp["營業收入合計"] * 100
-    tmp["淨利率（%）"] = tmp["本期淨利（淨損）"] / tmp["營業收入合計"] * 100
+    tmp["GPM(%)"] = tmp["營業毛利（毛損）"] / tmp["營業收入合計"] * 100
+    tmp["NIM(%)"] = tmp["本期淨利（淨損）"] / tmp["營業收入合計"] * 100
 
     # 加入資產負債表["普通股股本", "資產總計", "權益總額"]
     tmp = tmp.merge(
         balance_sheets[["普通股股本", "資產總計", "權益總額"]], on=util.TIMED_INDEX_COLs
     )
-    tmp["資產報酬率（%）"] = tmp["本期淨利（淨損）"] / tmp["資產總計"] * 100
-    tmp["股東報酬率（%）"] = tmp["本期淨利（淨損）"] / tmp["權益總額"] * 100
+    tmp["ROA(%)"] = tmp["本期淨利（淨損）"] / tmp["資產總計"] * 100
+    tmp["ROE(%)"] = tmp["本期淨利（淨損）"] / tmp["權益總額"] * 100
     tmp["負債比(%)"] = (tmp["資產總計"] - tmp["權益總額"]) / tmp["資產總計"] * 100
 
     fin_profits = tmp
@@ -201,55 +247,45 @@ def analyze_price_df():
     return price_df
 
 
-def analyze_pera_df():
-    global pera_df
-
-    pera_df = peras.loc[datatime_range["max_pera"]]
-    return pera_df
-
-
 def analyze_profit_df(columns=None) -> pandas.DataFrame:
     global profit_df
     columns = columns or (
         PERA_COLs
         + [
-            "每股盈餘",
-            "毛利率（%）",
-            "淨利率（%）",
-            "資產報酬率（%）",
-            "股東報酬率（%）",
-            "毛利率(%)增加",
-            "淨利率(%）增加",
-            "資產報酬率(%)增加",
-            "股東報酬率(%)增加",
-            "負債比(%)增加",
-            "普通股股本增加",
-            "資產總計增加",
-            "權益總額增加",
+            "EPS",
+            "GPM(%)",
+            "NIM(%)",
+            "ROA(%)",
+            "ROE(%)",
+            "EPS(0)+",
+            "GPM(%)+",
+            "NIM(%)+",
+            "ROA(%)+",
+            "ROE(%)+",
+            "負債比(%)+",
+            "普通股股本+",
+            "資產總計+",
+            "權益總額+",
         ]
     )
     tmp = epsa_df.copy()
-    tmp["每股盈餘"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].sum(axis=1)
-    tmp["淨利率（%）"] = tmp[
-        ["淨利率（%）", "淨利率（%）_q1", "淨利率（%）_q2", "淨利率（%）_q3"]
-    ].sum(axis=1)
-    tmp["毛利率（%）"] = tmp[
-        ["毛利率（%）", "毛利率（%）_q1", "毛利率（%）_q2", "毛利率（%）_q3"]
-    ].sum(axis=1)
-    tmp["資產報酬率（%）"] = tmp[
+    tmp["EPS"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].sum(axis=1)
+    tmp["NIM(%)"] = tmp[["NIM(%)", "NIM(%)_q1", "NIM(%)_q2", "NIM(%)_q3"]].sum(axis=1)
+    tmp["GPM(%)"] = tmp[["GPM(%)", "GPM(%)_q1", "GPM(%)_q2", "GPM(%)_q3"]].sum(axis=1)
+    tmp["ROA(%)"] = tmp[
         [
-            "資產報酬率（%）",
-            "資產報酬率（%）_q1",
-            "資產報酬率（%）_q2",
-            "資產報酬率（%）_q3",
+            "ROA(%)",
+            "ROA(%)_q1",
+            "ROA(%)_q2",
+            "ROA(%)_q3",
         ]
     ].sum(axis=1)
-    tmp["股東報酬率（%）"] = tmp[
+    tmp["ROE(%)"] = tmp[
         [
-            "股東報酬率（%）",
-            "股東報酬率（%）_q1",
-            "股東報酬率（%）_q2",
-            "股東報酬率（%）_q3",
+            "ROE(%)",
+            "ROE(%)_q1",
+            "ROE(%)_q2",
+            "ROE(%)_q3",
         ]
     ].sum(axis=1)
 
@@ -269,7 +305,6 @@ def analyze_epsa_df(columns=None) -> pandas.DataFrame:
 
     # Based on pera_df
     # merge income_sheets["本期淨利（淨損）", "基本每股盈餘合計", "營業外收入及支出合計"] from `fin_profits_df`
-    fin_profits
     tmp = pera_df.merge(
         fin_profits.loc[q0_ts],
         on=[util.SECURITY_ID_NAME],
@@ -329,15 +364,16 @@ def analyze_epsa_df(columns=None) -> pandas.DataFrame:
     tmp = append_price_info(tmp)
     tmp["(C)PER"] = tmp["收盤價"] / (tmp["(C)EPS"] * 4)
 
-    tmp["毛利率(%)增加"] = tmp["毛利率（%）_q1"] - tmp["毛利率（%）_q1"]
-    tmp["淨利率(%）增加"] = tmp["淨利率（%）_q1"] - tmp["淨利率（%）_q1"]
-    tmp["資產報酬率(%)增加"] = tmp["資產報酬率（%）"] - tmp["資產報酬率（%）_q1"]
-    tmp["股東報酬率(%)增加"] = tmp["股東報酬率（%）"] - tmp["股東報酬率（%）_q1"]
-    tmp["負債比(%)增加"] = tmp["負債比(%)"] - tmp["負債比(%)_q1"]
+    tmp["EPS(0)+"] = tmp["E(0)"] - tmp["E(1)"]
+    tmp["GPM(%)+"] = tmp["GPM(%)_q1"] - tmp["GPM(%)_q1"]
+    tmp["NIM(%)+"] = tmp["NIM(%)_q1"] - tmp["NIM(%)_q1"]
+    tmp["ROA(%)+"] = tmp["ROA(%)"] - tmp["ROA(%)_q1"]
+    tmp["ROE(%)+"] = tmp["ROE(%)"] - tmp["ROE(%)_q1"]
+    tmp["負債比(%)+"] = tmp["負債比(%)"] - tmp["負債比(%)_q1"]
 
-    tmp["普通股股本增加"] = tmp["普通股股本"] - tmp["普通股股本_q1"]
-    tmp["資產總計增加"] = tmp["資產總計"] - tmp["資產總計_q1"]
-    tmp["權益總額增加"] = tmp["權益總額"] - tmp["權益總額_q1"]
+    tmp["普通股股本+"] = tmp["普通股股本"] - tmp["普通股股本_q1"]
+    tmp["資產總計+"] = tmp["資產總計"] - tmp["資產總計_q1"]
+    tmp["權益總額+"] = tmp["權益總額"] - tmp["權益總額_q1"]
 
     epsa_df = tmp
     return epsa_df[columns]
@@ -363,6 +399,5 @@ def reverse_df_index(df: pandas.DataFrame) -> pandas.DataFrame:
 
 calculate_stmt_profits()
 analyze_price_df()
-analyze_pera_df()
 analyze_epsa_df()
 analyze_profit_df()
