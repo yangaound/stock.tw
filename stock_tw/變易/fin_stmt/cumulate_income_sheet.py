@@ -15,13 +15,14 @@ CUMULATE_INCOME_TB_COLs: list[str] = util.CONF["累計損益表頭"]
 def read_sql(
     conn: Union[sqlite3.Connection, MySQLdb.Connection],
     start_time: datetime.datetime = None,
+    sql_stmt: str = None,
 ) -> pandas.DataFrame:
     _start_time = start_time or (
         datetime.datetime.now() - relativedelta(years=1, months=4)
     )
     _fields = ", ".join(map(lambda field: f"`{field}`", CUMULATE_INCOME_TB_COLs))
 
-    sql_stmt = f"""
+    sql_stmt = sql_stmt or f"""
         SELECT {_fields}
         FROM `{CUMULATE_INCOME_TB_NAME}`
         WHERE 1

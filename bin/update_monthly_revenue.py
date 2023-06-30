@@ -37,6 +37,7 @@ def main(ts: datetime.datetime):
         logging.warning(str(e))
     except Exception:
         logging.error(traceback.format_exc())
+        raise
     finally:
         db_proxy and db_proxy.close()
 

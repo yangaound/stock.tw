@@ -18,7 +18,6 @@ TIME_COL_NAME = "ts"
 SECURITY_ID_NAME = "code"
 TIMED_INDEX_COLs = [TIME_COL_NAME, SECURITY_ID_NAME]
 
-
 CONF_PATH = os.getenv("CONF_PATH")
 CONF: dict[str, Any]
 
@@ -88,7 +87,22 @@ class IFRSDateIter:
     Q4 -> datetime.datetime(year + 1,  3, 31)
     """
 
-    def __init__(self, year, quarter, end_year=2100, end_quarter=4):
+    def __init__(
+        self,
+        year: int = None,
+        quarter: int = None,
+        ifrs_dt: datetime.datetime = None,
+        end_year=2100,
+        end_quarter=4,
+    ):
+        if not (year or quarter or ifrs_dt):
+            raise ValueError(
+                "either one of `year-quarter` or `ifrs_dt` should be given"
+            )
+
+        if not (year or quarter) and ifrs_dt:
+            year, quarter = IFRSDateIter.ifrs_dt2quarter(ifrs_dt)
+
         self.year = year
         self.quarter = quarter
         self.end_yaar = end_year
