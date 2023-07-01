@@ -8,7 +8,6 @@ import MySQLdb
 import numpy
 import pandas
 import requests
-from dateutil.relativedelta import relativedelta
 
 from . import util
 
@@ -39,15 +38,9 @@ def extract(ts: datetime.datetime) -> pandas.DataFrame:
 
 def read_sql(
     conn: Union[sqlite3.Connection, MySQLdb.Connection],
-    start_time: datetime.datetime = None,
 ) -> pandas.DataFrame:
-    _start_time = start_time or (datetime.datetime.now() - relativedelta(days=10))
-
     df = pandas.read_sql(
-        (
-            f"SELECT * FROM `{PERA_TB_NAME}` WHERE `{util.TIME_COL_NAME}` >="
-            f" '{_start_time}';"
-        ),
+        f"SELECT * FROM `{PERA_TB_NAME}`;",
         con=conn,
         index_col=util.TIMED_INDEX_COLs,
         parse_dates=[util.TIME_COL_NAME],
