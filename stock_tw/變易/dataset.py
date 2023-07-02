@@ -135,7 +135,7 @@ INCOME_SHEET_COLs = [
     "停業單位淨利（淨損）",
 ]
 # Column names related to table pera
-PERA_COLs = [
+ANAL_PER_COLs = [
     "殖利率(%)",
     "股利年度",
     "股利連續N年",
@@ -147,7 +147,7 @@ REVENUE_COLs = ["當月營收", "當月累計營收", "去年累計營收"]
 # Analysis column names that can be calculated based on revenue data
 ANAL_REVENUE_COLs = ["當月營收", "YoY(%)", "MoM(%)", "IsM3"]
 # Analysis column names that can be calculated based on "fin_stmt" data
-ANAL_QUARTER_INCOME_COLs = ["本期淨利（淨損）", "YoY(%)", "MoM(%)", "IsQ3"]
+ANAL_QUARTER_COLs = ["本期淨利（淨損）", "YoY(%)", "QoQ(%)", "IsQ3"]
 # Historical column names related to "fin_stmt"
 _HIS_PROFIT_COLs = [
     "GPM(%)",
@@ -156,40 +156,28 @@ _HIS_PROFIT_COLs = [
     "ROE(%)",
     "DBR(%)",
 ]
-# 4 quarters analysis column names related to "fin_stmt"
-_ANAL_PROFIT_COLs = [
-    "EPS(0)+",
-    "GPM(%)+",
-    "NIM(%)+",
-    "ROA(%)+",
-    "ROE(%)+",
-    "DBR(%)+",
-    "股本+",
-    "資產+",
-    "權益+",
-]
 # Column names related to EPS analysis
-ANAL_EPS_COLs = (
-    _HIS_PROFIT_COLs
-    + _ANAL_PROFIT_COLs
-    + [
-        "(C)PER",
-        "(C)EPS",
-        "E(Sum)",
-        "E(Avg)",
-        "E(Std)",
-        "E(0)",
-        "E(1)",
-        "E(2)",
-        "E(3)",
-        "外%(0)",
-        "外%(1)",
-        "外%(2)",
-        "外%(3)",
-    ]
-)
-# Column names related to profit analysis
-ANAL_PROFIT_COLs = ["EPS"] + _HIS_PROFIT_COLs + _ANAL_PROFIT_COLs
+ANAL_EPS_COLs = [
+    "EPS",
+    "(C)EPS",
+    "(C)PER",
+    "E(Sum)",
+    "E(Avg)",
+    "E(Std)",
+    "E(0)",
+    "E(1)",
+    "E(2)",
+    "E(3)",
+    "外%(0)",
+    "外%(1)",
+    "外%(2)",
+    "外%(3)",
+    "GPM(%)0",
+    "NIM(%)0",
+    "ROA(%)0",
+    "ROE(%)0",
+    "DBR(%)0",
+]
 # Column names related to custom profit analysis based on revenues
 CUST_ANAL_PROFIT_COLs = [
     "(C)營收合計",
@@ -197,24 +185,53 @@ CUST_ANAL_PROFIT_COLs = [
     "(C)合計月數",
 ]
 
+# Column names related to profit analysis
+ANAL_PROFIT_COLs = (
+    PRICE_COLs
+    + ANAL_PER_COLs
+    + ANAL_EPS_COLs
+    + _HIS_PROFIT_COLs
+    + [
+        "EPS(0)+",
+        "GPM(%)+",
+        "NIM(%)+",
+        "ROA(%)+",
+        "ROE(%)+",
+        "DBR(%)+",
+        "股本+",
+        "資產+",
+        "權益+",
+    ]
+    + ANAL_QUARTER_COLs
+    + CUST_ANAL_PROFIT_COLs
+)
+
 
 # Global variables for analysis
+daily_price: pandas.DataFrame
 his_profits: pandas.DataFrame
-per_anal: pandas.DataFrame
-price_anal: pandas.DataFrame
-eps_anal: pandas.DataFrame
-profit_anal: pandas.DataFrame
-revenue_anal: pandas.DataFrame
-quarter_income_anal: pandas.DataFrame
+anal_per: pandas.DataFrame
+anal_profit: pandas.DataFrame
+anal_revenue: pandas.DataFrame
+anal_quarter: pandas.DataFrame
+
+
+def get_daily_price(ts: datetime.datetime = None):
+    """Retrieve and analyze the latest price data"""
+    global daily_price
+    ts = ts or datatime_range["max_price"]
+
+    daily_price = prices.loc[ts]
+    return daily_price
 
 
 def analyze_per():
     """
     It retrieves the latest `peras` data and calculates the number of consecutive dividend years.
     """
-    global peras, per_anal
+    global peras, anal_per
 
-    per_anal = peras.loc[datatime_range["max_pera"]]
+    anal_per = peras.loc[datatime_range["max_pera"]]
 
     # Calculate consecutive dividend years for each security
     df = peras[(peras["股利年度"] > 90) & (peras["殖利率(%)"] > 0)]
@@ -235,7 +252,7 @@ def analyze_per():
                 year_count += 1
             else:
                 break
-        per_anal.loc[code, "股利連續N年"] = year_count
+        anal_per.loc[code, "股利連續N年"] = year_count
 
 
 def calculate_his_profits(columns: list[str] = None) -> pandas.DataFrame:
@@ -282,18 +299,9 @@ def calculate_his_profits(columns: list[str] = None) -> pandas.DataFrame:
     return his_profits[columns]
 
 
-def analyze_price(ts: datetime.datetime = None):
-    """Retrieve and analyze the latest price data"""
-    global price_anal
-    ts = ts or datatime_range["max_price"]
-
-    price_anal = prices.loc[ts]
-    return price_anal
-
-
 def analyze_revenue(ts: datetime.datetime = None):
     """Retrieve and analyze the latest revenue data"""
-    global revenue_anal
+    global anal_revenue
     ts = ts or datatime_range["max_revenue"]
 
     m0_revenue = revenues.loc[ts]
@@ -322,50 +330,25 @@ def analyze_revenue(ts: datetime.datetime = None):
     tmp["IsM3"] = (tmp["當月營收"] > tmp["R(1)"]) & (tmp["R(1)"] > tmp["R(2)"])
     tmp.sort_values("MoM(%)", ascending=False)
 
-    revenue_anal = tmp
-    return revenue_anal[
+    anal_revenue = tmp
+    return anal_revenue[
         ANAL_REVENUE_COLs + ["當月累計營收", "去年累計營收", "R(1)", "R(2)", "R(y)"]
     ]
 
 
-def analyze_quarter_income(ts: datetime.datetime = None, columns: list[str] = None):
-    global quarter_income_anal
-    columns = columns or ANAL_QUARTER_INCOME_COLs
-    analyze_eps(ts)
-    tmp = eps_anal
-
-    tmp["YoY(%)"] = (
-        (tmp["本期淨利（淨損）"] - tmp["本期淨利（淨損）_q4"])
-        / tmp["本期淨利（淨損）_q4"]
-        * 100
-    )
-    tmp["MoM(%)"] = (
-        (tmp["本期淨利（淨損）"] - tmp["本期淨利（淨損）_q1"])
-        / tmp["本期淨利（淨損）_q1"]
-        * 100
-    )
-    tmp["IsQ3"] = (tmp["本期淨利（淨損）"] > tmp["本期淨利（淨損）_q1"]) & (
-        tmp["本期淨利（淨損）_q1"] > tmp["本期淨利（淨損）_q2"]
-    )
-    tmp = tmp.sort_values(["MoM(%)", "YoY(%)"], ascending=False)
-
-    quarter_income_anal = tmp
-    return quarter_income_anal[columns]
-
-
-def analyze_eps(
+def analyze_profit(
     ts: datetime.datetime = None, columns: list[str] = None
 ) -> pandas.DataFrame:
-    global eps_anal
+    global anal_profit
     ts = ts or datatime_range["max_fin_stmt"]
-    columns = columns or (PRICE_COLs + PERA_COLs + ANAL_EPS_COLs)
+    columns = columns or ANAL_PROFIT_COLs
 
     ifrs_iter = util.IFRSDateIter(ifrs_dt=ts)
     q0_ts = ifrs_iter.current_ifrs_dt()
 
     # Based on pera_df
     # merge income_sheets["本期淨利（淨損）", "基本每股盈餘合計", "營業外收入及支出合計"] from `fin_profits_df`
-    tmp = per_anal.merge(
+    tmp = anal_per.merge(
         his_profits.loc[q0_ts],
         on=[util.SECURITY_ID_NAME],
         how="outer",
@@ -406,13 +389,23 @@ def analyze_eps(
         "營業外收入及支出合計_q2": "外(2)",
         "營業外收入及支出合計_q3": "外(3)",
         "營業外收入及支出合計_q4": "外(4)",
+        "GPM(%)": "GPM(%)0",
+        "NIM(%)": "NIM(%)0",
+        "ROA(%)": "ROA(%)0",
+        "ROE(%)": "ROE(%)0",
+        "DBR(%)": "DBR(%)0",
     }
     tmp.rename(columns=column_map, inplace=True)
     # (C)EPS
     tmp["E(Sum)"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].sum(axis=1)
     tmp["E(Avg)"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].mean(axis=1)
     tmp["E(Std)"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].std(axis=1)
+    tmp["EPS"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].sum(axis=1)
     tmp["(C)EPS"] = tmp["本期淨利（淨損）"] / tmp["普通股股本"] * 10
+
+    # (C)PER
+    tmp = append_price_info(tmp)
+    tmp["(C)PER"] = tmp["收盤價"] / (tmp["(C)EPS"] * 4)
 
     # 業外收入
     tmp["外%(0)"] = tmp["外(0)"] / tmp["本期淨利（淨損）"] * 100
@@ -420,39 +413,11 @@ def analyze_eps(
     tmp["外%(2)"] = tmp["外(2)"] / tmp["本期淨利（淨損）_q2"] * 100
     tmp["外%(3)"] = tmp["外(3)"] / tmp["本期淨利（淨損）_q3"] * 100
 
-    # (C)PER
-    tmp = append_price_info(tmp)
-    tmp["(C)PER"] = tmp["收盤價"] / (tmp["(C)EPS"] * 4)
-
-    tmp["EPS(0)+"] = tmp["E(0)"] - tmp["E(1)"]
-    tmp["GPM(%)+"] = tmp["GPM(%)_q1"] - tmp["GPM(%)_q1"]
-    tmp["NIM(%)+"] = tmp["NIM(%)_q1"] - tmp["NIM(%)_q1"]
-    tmp["ROA(%)+"] = tmp["ROA(%)"] - tmp["ROA(%)_q1"]
-    tmp["ROE(%)+"] = tmp["ROE(%)"] - tmp["ROE(%)_q1"]
-    tmp["DBR(%)+"] = tmp["DBR(%)"] - tmp["DBR(%)_q1"]
-
-    tmp["股本+"] = tmp["普通股股本"] - tmp["普通股股本_q1"]
-    tmp["資產+"] = tmp["資產總計"] - tmp["資產總計_q1"]
-    tmp["權益+"] = tmp["權益總額"] - tmp["權益總額_q1"]
-
-    eps_anal = tmp
-    return eps_anal[columns]
-
-
-def analyze_profit(
-    ts: datetime.datetime = None, columns: list[str] = None
-) -> pandas.DataFrame:
-    global profit_anal
-    columns = columns or (PERA_COLs + ANAL_PROFIT_COLs)
-    analyze_eps(ts)
-    tmp = eps_anal
-
-    tmp["EPS"] = tmp[["E(0)", "E(1)", "E(2)", "E(3)"]].sum(axis=1)
-    tmp["NIM(%)"] = tmp[["NIM(%)", "NIM(%)_q1", "NIM(%)_q2", "NIM(%)_q3"]].sum(axis=1)
-    tmp["GPM(%)"] = tmp[["GPM(%)", "GPM(%)_q1", "GPM(%)_q2", "GPM(%)_q3"]].sum(axis=1)
+    tmp["NIM(%)"] = tmp[["NIM(%)0", "NIM(%)_q1", "NIM(%)_q2", "NIM(%)_q3"]].sum(axis=1)
+    tmp["GPM(%)"] = tmp[["GPM(%)0", "GPM(%)_q1", "GPM(%)_q2", "GPM(%)_q3"]].sum(axis=1)
     tmp["ROA(%)"] = tmp[
         [
-            "ROA(%)",
+            "ROA(%)0",
             "ROA(%)_q1",
             "ROA(%)_q2",
             "ROA(%)_q3",
@@ -460,15 +425,48 @@ def analyze_profit(
     ].sum(axis=1)
     tmp["ROE(%)"] = tmp[
         [
-            "ROE(%)",
+            "ROE(%)0",
             "ROE(%)_q1",
             "ROE(%)_q2",
             "ROE(%)_q3",
         ]
     ].sum(axis=1)
+    tmp["DBR(%)"] = tmp[
+        [
+            "DBR(%)0",
+            "DBR(%)_q1",
+            "DBR(%)_q2",
+            "DBR(%)_q3",
+        ]
+    ].sum(axis=1)
 
-    profit_anal = tmp
-    return profit_anal[columns]
+    tmp["EPS(0)+"] = tmp["E(0)"] - tmp["E(1)"]
+    tmp["GPM(%)+"] = tmp["GPM(%)0"] - tmp["GPM(%)_q1"]
+    tmp["NIM(%)+"] = tmp["NIM(%)0"] - tmp["NIM(%)_q1"]
+    tmp["ROA(%)+"] = tmp["ROA(%)0"] - tmp["ROA(%)_q1"]
+    tmp["ROE(%)+"] = tmp["ROE(%)0"] - tmp["ROE(%)_q1"]
+    tmp["DBR(%)+"] = tmp["DBR(%)0"] - tmp["DBR(%)_q1"]
+
+    tmp["股本+"] = tmp["普通股股本"] - tmp["普通股股本_q1"]
+    tmp["資產+"] = tmp["資產總計"] - tmp["資產總計_q1"]
+    tmp["權益+"] = tmp["權益總額"] - tmp["權益總額_q1"]
+
+    tmp["YoY(%)"] = (
+        (tmp["本期淨利（淨損）"] - tmp["本期淨利（淨損）_q4"])
+        / tmp["本期淨利（淨損）_q4"]
+        * 100
+    )
+    tmp["QoQ(%)"] = (
+        (tmp["本期淨利（淨損）"] - tmp["本期淨利（淨損）_q1"])
+        / tmp["本期淨利（淨損）_q1"]
+        * 100
+    )
+    tmp["IsQ3"] = (tmp["本期淨利（淨損）"] > tmp["本期淨利（淨損）_q1"]) & (
+        tmp["本期淨利（淨損）_q1"] > tmp["本期淨利（淨損）_q2"]
+    )
+
+    anal_profit = tmp
+    return anal_profit[columns]
 
 
 def append_stock_info(df: pandas.DataFrame) -> pandas.DataFrame:
@@ -476,7 +474,7 @@ def append_stock_info(df: pandas.DataFrame) -> pandas.DataFrame:
 
 
 def append_price_info(df: pandas.DataFrame) -> pandas.DataFrame:
-    return price_anal[PRICE_COLs].merge(
+    return daily_price[PRICE_COLs].merge(
         df,
         on=[util.SECURITY_ID_NAME],
         how="right",
@@ -489,9 +487,8 @@ def reverse_df_index(df: pandas.DataFrame) -> pandas.DataFrame:
     return tmp
 
 
+get_daily_price()
 calculate_his_profits()
 analyze_revenue()
 analyze_per()
-analyze_price()
-analyze_eps()
 analyze_profit()

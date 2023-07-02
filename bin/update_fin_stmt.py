@@ -45,7 +45,7 @@ def main(ts: datetime.datetime):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-quarter", help="Ex: 20231")
+    parser.add_argument("-quarter", help="The year and quarter values, example: 20231")
     args = parser.parse_args()
 
     if args.quarter:

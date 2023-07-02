@@ -44,14 +44,17 @@ def main(ts: datetime.datetime):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-month", help="start date of month (YYYYmm).")
+    parser.add_argument(
+        "-month",
+        help="The year and month of the target revenue in the format 'YYYY-MM'",
+    )
     args = parser.parse_args()
 
     # Parse datetime from command line or default to last month.
     if args.month:
-        _ts = datetime.datetime.strptime(f"{args.month}10", "%Y%m%d")
+        _ts = datetime.datetime.strptime(f"{args.month}-10", "%Y-%m-%d")
     else:
         _ = datetime.datetime.today() - relativedelta(months=1)
-        _ts = datetime.datetime(_.year, _.month, 1)
+        _ts = datetime.datetime(_.year, _.month, 10)
 
     main(_ts)

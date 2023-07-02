@@ -54,13 +54,13 @@ def main(stime: datetime.datetime, etime: datetime.datetime):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-edate", help="end date (YYYYmmdd).")
-    parser.add_argument("-sdate", help="start date (YYYYmmdd).")
+    parser.add_argument("-sdate", help="The start date in format 'YYYY-MM-DD'")
+    parser.add_argument("-edate", help="The end date in format 'YYYY-MM-DD'")
     args = parser.parse_args()
 
     # Determine end time, parse from command line or default to today
     if args.edate:
-        end_time = datetime.datetime.strptime(args.edate, "%Y%m%d")
+        end_time = datetime.datetime.strptime(args.edate, "%Y-%m-%d")
     else:
         # Determine end time
         now = datetime.datetime.now(tz=pytz.timezone("Asia/Taipei")).replace(
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     # Determine start time, parse from command line or use end_time
     if args.sdate:
-        start_time = datetime.datetime.strptime(args.sdate, "%Y%m%d")
+        start_time = datetime.datetime.strptime(args.sdate, "%Y-%m-%d")
     else:
         start_time = end_time
 
