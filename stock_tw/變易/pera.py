@@ -2,7 +2,7 @@ import calendar
 import datetime
 import logging
 import sqlite3
-from typing import Union
+from typing import Optional, Union
 
 import MySQLdb
 import numpy
@@ -17,11 +17,11 @@ PERA_TB_COLs = ["殖利率(%)", "股利年度", "本益比", "股價淨值比", 
 
 def extract(ts: datetime.datetime) -> pandas.DataFrame:
     if ts.date() > datetime.date.today():
-        raise ValueError(f"The date `{ts}` must be in the past.")
+        raise util.YiException(f"The date `{ts}` must be in the past.")
 
-    if weekday := calendar.weekday(ts.year, ts.month, ts.day) in (5, 6):
+    if (weekday := calendar.weekday(ts.year, ts.month, ts.day)) in (5, 6):
         weekdays = {5: "Saturday", 6: "Sunday"}
-        raise ValueError(f"The date `{ts}` is {weekdays[weekday]}.")
+        raise util.YiException(f"The date `{ts}` is {weekdays[weekday]}.")
 
     # TWSE
     twse_df = _crawl_pera_from_twse(ts)
@@ -38,9 +38,11 @@ def extract(ts: datetime.datetime) -> pandas.DataFrame:
 
 def read_sql(
     conn: Union[sqlite3.Connection, MySQLdb.Connection],
+    sql: Optional[str] = None,
 ) -> pandas.DataFrame:
+    sql = sql or f"SELECT * FROM `{PERA_TB_NAME}`;"
     df = pandas.read_sql(
-        f"SELECT * FROM `{PERA_TB_NAME}`;",
+        sql,
         con=conn,
         index_col=util.TIMED_INDEX_COLs,
         parse_dates=[util.TIME_COL_NAME],

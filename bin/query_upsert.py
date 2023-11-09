@@ -13,12 +13,12 @@ from stock_tw.變易 import util
 
 def main(table_name, stime: datetime.datetime, etime: datetime.datetime):
     sql = f"""
-    SELECT `ts`, `updated_ts`, `code`
-        from `{table_name}`
+    SELECT `ts`, `updated_ts`, `created_ts`, `code`
+        FROM `{table_name}`
     WHERE 1
         AND `updated_ts` >= '{stime}'
         AND `updated_ts` <= '{etime}'
-    """
+    ;"""
     logging.info(sql)
 
     db_proxy = None
@@ -33,8 +33,9 @@ def main(table_name, stime: datetime.datetime, etime: datetime.datetime):
 
     output = {
         "code": [v for v in df["code"]],
-        "ts": [v.to_pydatetime().isoformat() for v in df["ts"]],
+        "created_ts": [v.to_pydatetime().isoformat() for v in df["created_ts"]],
         "updated_ts": [v.to_pydatetime().isoformat() for v in df["updated_ts"]],
+        "ts": [v.to_pydatetime().isoformat() for v in df["ts"]],
     }
     print(json.dumps(output, indent=2))
 

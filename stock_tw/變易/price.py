@@ -32,7 +32,7 @@ PRICE_TB_COLs = [
 ]
 
 
-def extract_price(ts: datetime.datetime) -> pandas.DataFrame:
+def extract(ts: datetime.datetime) -> pandas.DataFrame:
     if ts.date() > datetime.date.today():
         raise ValueError(f"The date `{ts}` must be in the past.")
 
@@ -197,8 +197,7 @@ def _crawl_daily_price_from_tpex(ts: datetime.datetime) -> pandas.DataFrame:
         "最後賣量(千股)": "最後揭示賣量",
     }
     df.rename(columns=column_map, inplace=True)
-
-    # Replace the comma (',') in scalars
+    # Replace the comma & space (',', ' ') in scalars
     df = df.astype(str)
     df = df.apply(lambda scalar: scalar.str.replace(",", ""))
 
@@ -217,7 +216,7 @@ def _crawl_daily_price_from_tpex(ts: datetime.datetime) -> pandas.DataFrame:
     df = df.apply(lambda scalar: pandas.to_numeric(scalar, errors="coerce"))
 
     # Cutout the columns consist of empty value
-    df = df[df.columns[df.isnull().all() == False]]
+    # df = df[df.columns[df.isnull().all() == False]]
 
     df["漲跌幅(%)"] = df["漲跌價差"] / df["收盤價"] * 100
     df["本益比"] = numpy.NaN

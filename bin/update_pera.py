@@ -1,5 +1,4 @@
 import argparse
-import calendar
 import datetime
 import logging
 import time
@@ -13,12 +12,8 @@ from stock_tw.變易 import pera, util
 
 
 def main(stime: datetime.datetime, etime: datetime.datetime):
-    while stime <= etime:
-        if calendar.weekday(stime.year, stime.month, stime.day) in (5, 6):
-            logging.info(f"Skip date `{stime}`")
-            stime += datetime.timedelta(days=1)
-            continue
-
+    max_retry, retry = 10, 0
+    while stime <= etime and retry < 10:
         db_proxy = None
         try:
             # Extract DataFrame from internet
@@ -42,21 +37,23 @@ def main(stime: datetime.datetime, etime: datetime.datetime):
                 mode="UPDATE",
             )
             logging.info(f"Upsert table `{pera.PERA_TB_NAME}` {count} rows")
+            tmp = stime + relativedelta(years=1)
+            stime = datetime.datetime(tmp.year, 12, 31)
+            retry = 0
         except util.YiException as e:
             logging.warning(str(e))
-            stime += datetime.timedelta(days=1)
+            stime += datetime.timedelta(days=-1)
+            retry += 1
         except Exception:
             logging.error(traceback.format_exc())
         finally:
             db_proxy and db_proxy.close()
-
-        stime += relativedelta(years=1)
         time.sleep(15)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-sdate", help="The start date in format 'YYYY-MM-DD'")
+    parser.add_argument("-syear", help="The start year in format 'YYYY'")
     parser.add_argument("-edate", help="The end date in format 'YYYY-MM-DD'")
     args = parser.parse_args()
 
@@ -75,8 +72,8 @@ if __name__ == "__main__":
             end_time = today - datetime.timedelta(days=1)
 
     # Determine start time, parse from command line or use end_time
-    if args.sdate:
-        start_time = datetime.datetime.strptime(args.sdate, "%Y-%m-%d")
+    if args.syear:
+        start_time = datetime.datetime.strptime(args.syear + "-12-31", "%Y-%m-%d")
     else:
         start_time = end_time
 

@@ -3,9 +3,10 @@ import logging
 import os
 import os.path
 import sqlite3
-from typing import Any
+from typing import Any, Union
 
 import dbman
+import MySQLdb
 import pandas
 import yaml
 
@@ -58,6 +59,25 @@ def read_csv(
 
     df = pandas.read_csv(
         file_path,
+        index_col=index_col,
+        parse_dates=parse_dates,
+    )
+
+    return df
+
+
+def read_sql(
+    sql: str,
+    conn: Union[sqlite3.Connection, MySQLdb.Connection],
+    index_col: list[str] = None,
+    parse_dates: list[str] = None,
+) -> pandas.DataFrame:
+    index_col = TIMED_INDEX_COLs if index_col is None else index_col
+    parse_dates = [TIME_COL_NAME] if parse_dates is None else parse_dates
+
+    df = pandas.read_sql(
+        sql,
+        con=conn,
         index_col=index_col,
         parse_dates=parse_dates,
     )
