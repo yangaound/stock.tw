@@ -6,4 +6,5 @@ BeautifulSoup4
 mysqlclient
 petl
 pyyaml
+sqlalchemy
 git+https://github.com/yangaound/dbman

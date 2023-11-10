@@ -28,4 +28,5 @@ python bin/update_pera.py
 ```shell
 source env.sh
 python bin/update_fin_stmt.py
+python bin/track_fin_stmt_ts.py
 ```

@@ -4,7 +4,7 @@ from typing import Optional, Union
 import MySQLdb
 import pandas
 
-from . import util
+from stock_tw import util
 
 SECURITY_TB_NAME = "security_list"
 SECURITY_TB_COLs = [

@@ -6,7 +6,7 @@ import MySQLdb
 import pandas
 from dateutil.relativedelta import relativedelta
 
-from stock_tw.變易 import util
+from stock_tw import util
 
 BALANCE_TB_NAME = "balance_sheet"
 BALANCE_TB_COLs: list[str] = util.CONF["資產負債表頭"]

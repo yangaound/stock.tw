@@ -8,7 +8,7 @@ import traceback
 import pandas
 import pytz
 
-from stock_tw.變易 import util
+from stock_tw import util
 
 
 def main(table_name, stime: datetime.datetime, etime: datetime.datetime):
@@ -21,15 +21,15 @@ def main(table_name, stime: datetime.datetime, etime: datetime.datetime):
     ;"""
     logging.info(sql)
 
-    db_proxy = None
+    connection = None
     try:
-        db_proxy = util.get_db_proxy()
-        df = pandas.read_sql(sql, con=db_proxy.connection)
+        connection = util.DB_ENGINE.connect()
+        df = pandas.read_sql(sql, con=connection)
     except Exception:
         logging.error(traceback.format_exc())
         raise
     finally:
-        db_proxy and db_proxy.close()
+        connection and connection.close()
 
     output = {
         "code": [v for v in df["code"]],

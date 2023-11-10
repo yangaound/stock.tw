@@ -1,7 +1,9 @@
-APP_HOME=/Users/yinlong/anaconda3/envs/stock-tw/bin
-WORK_DIR=/Users/yinlong/PJ/stock-tw
-* */5 * * 1-5                cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_securities.py >> data/update_securities-`(date "+\%Y\%m")`.log 2>&1
+APP_HOME=/Users/yinlong/anaconda3/envs/stock.tw/bin
+WORK_DIR=/Users/yinlong/PJ/stock.tw
+* */5 * * 1-5                cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_security_list.py >> data/update_security_list-`(date "+\%Y\%m")`.log 2>&1
 0 14,15,16,18,21,23 * * 1-5  cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_daily_price.py >> data/update_price-`(date "+\%Y\%m\%d")`.log 2>&1
 0 14,15,16,18,21,23 * * 1-5  cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_pera.py >> data/update_pera-`(date "+\%Y\%m\%d")`.log 2>&1
 */10 * 2-12 * *              cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_monthly_revenue.py >> data/update_revenue-`(date "+\%Y\%m")`.log 2>&1
-*/10 * 2-17 * *              cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_fin_stmt.py -quarter $(date "+\%Y")$(($(date "+\%m") / 3)) >> data/update_fin_stmt-$(date "+\%Y\%m").log 2>&1
+0 */1 2-17 5,8,11 *          cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_fin_stmt.py >> data/update_fin_stmt-$(date "+\%Y")$(($(date "+\%m") / 3)).log 2>&1
+0 */1 2-31 3 *               cd $WORK_DIR && source env.sh && $APP_HOME/python bin/update_fin_stmt.py >> data/update_fin_stmt-$(($(date "+\%Y") - 1))4.log 2>&1
+5 * * * *                    cd $WORK_DIR && source env.sh && $APP_HOME/python bin/track_fin_stmt_ts.py -quarter $(date "+\%Y")$(($(date "+\%m") / 3)) >> data/track_fin_stmt_ts-$(date "+\%Y")$(($(date "+\%m") / 3)).log 2>&1

@@ -6,7 +6,7 @@ import MySQLdb
 import pandas
 from dateutil.relativedelta import relativedelta
 
-from stock_tw.變易 import util
+from stock_tw import util
 
 INCOME_TB_NAME = "income_sheet"
 INCOME_TB_COLs: list[str] = util.CONF["損益表頭"]

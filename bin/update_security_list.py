@@ -3,7 +3,8 @@ import traceback
 
 import numpy as np
 
-from stock_tw.變易 import security, util
+from stock_tw.變易 import security
+from stock_tw import util
 
 
 def main():

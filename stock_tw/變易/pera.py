@@ -9,7 +9,7 @@ import numpy
 import pandas
 import requests
 
-from . import util
+from .. import util
 
 PERA_TB_NAME = "pera"
 PERA_TB_COLs = ["殖利率(%)", "股利年度", "本益比", "股價淨值比", "每股股利(註)"]

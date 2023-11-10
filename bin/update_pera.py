@@ -8,7 +8,8 @@ import numpy as np
 import pytz
 from dateutil.relativedelta import relativedelta
 
-from stock_tw.變易 import pera, util
+from stock_tw.變易 import pera
+from stock_tw import util
 
 
 def main(stime: datetime.datetime, etime: datetime.datetime):

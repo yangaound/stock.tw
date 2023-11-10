@@ -8,6 +8,7 @@ from typing import Any, Union
 import dbman
 import MySQLdb
 import pandas
+import sqlalchemy
 import yaml
 
 logging.basicConfig(
@@ -19,11 +20,21 @@ TIME_COL_NAME = "ts"
 SECURITY_ID_NAME = "code"
 TIMED_INDEX_COLs = [TIME_COL_NAME, SECURITY_ID_NAME]
 
-CONF_PATH = os.getenv("CONF_PATH")
 CONF: dict[str, Any]
+DB_ENGINE: sqlalchemy.Engine
 
-with open(CONF_PATH, encoding="UTF-8") as _fp:
+
+with open(os.getenv("CONF_PATH"), encoding="UTF-8") as _fp:
     CONF = yaml.load(_fp, yaml.SafeLoader)
+
+with open(os.getenv("DB_CONF_PATH")) as _fp:
+    _stock_tw_db_conf = yaml.load(_fp, Loader=yaml.SafeLoader)
+    _db_conf = _stock_tw_db_conf["stock-tw"]["connect_kwargs"]
+    _conn_str = (
+        f"mysql+mysqldb://{_db_conf['user']}:{_db_conf['passwd']}@{_db_conf['host']}/{_db_conf['db']}"
+        f"?charset={_db_conf['charset']}"
+    )
+    DB_ENGINE = sqlalchemy.create_engine(_conn_str)
 
 
 class YiException(Exception):
@@ -36,10 +47,7 @@ def get_sqlite3() -> sqlite3.Connection:
 
 
 def get_db_proxy() -> dbman.DBProxy:
-    return dbman.DBProxy(
-        db_config=os.getenv("DB_CONF_PATH"),
-        db_label="stock-tw",
-    )
+    return dbman.DBProxy(connection=DB_ENGINE.raw_connection())
 
 
 def is_table_existed_in_sqlite3(table_name: str, con: sqlite3.Connection):

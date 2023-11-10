@@ -11,7 +11,7 @@ import pandas
 import requests
 from dateutil.relativedelta import relativedelta
 
-from . import util
+from stock_tw import util
 
 PRICE_TB_NAME = "daily_price"
 PRICE_TB_COLs = [

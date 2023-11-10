@@ -5,11 +5,13 @@ from typing import Optional
 import pandas
 from dateutil.relativedelta import relativedelta
 
-from stock_tw.變易 import fin_stmt, pera, price, revenue, security, util
+from stock_tw.變易 import pera, price, revenue, security
+from stock_tw import util
+from stock_tw.變易.fin_stmt import balance_sheet, cash_flow, income_sheet, cumulate_income_sheet
 
 """
 This module performs analysis on financial data.
-It imports various modules and defines several functions to retrieve and analyze data from below tables:
+It imports various modules and defines several functions to retrieve and analyze data from the following:
 - securities
 - prices
 - peras
@@ -18,6 +20,9 @@ It imports various modules and defines several functions to retrieve and analyze
 - cumulate_income_sheets
 - balance_sheets
 - cash_flows
+For the financial data, We use MySQL(`CURRENT_TIMESTAMP`, `CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
+to track the change time of the financial data stored in SQLite3 because its schema may change over time. 
+SQLite3 can adapt to these changes.
 """
 
 securities: pandas.DataFrame
@@ -27,6 +32,7 @@ revenues: pandas.DataFrame
 income_sheets: pandas.DataFrame
 cumulate_income_sheets: pandas.DataFrame
 balance_sheets: pandas.DataFrame
+balance_sheet_metatime: pandas.DataFrame
 cash_flows: pandas.DataFrame
 
 datatime_range: dict[str, Optional[datetime.datetime]] = {
@@ -94,34 +100,37 @@ def refresh_revenues(
 
 def refresh_fin_stmt(connection, dt: datetime.datetime = _FIN_DATA_START_DT):
     global income_sheets, cumulate_income_sheets, balance_sheets, cash_flows
-    income_sheets = fin_stmt.income_sheet.read_sql(conn=connection, start_time=dt)
+    income_sheets = income_sheet.read_sql(conn=connection, start_time=dt)
     income_sheets.sort_index(ascending=True, inplace=True)
-    cumulate_income_sheets = fin_stmt.cumulate_income_sheet.read_sql(
+    cumulate_income_sheets = cumulate_income_sheet.read_sql(
         conn=connection, start_time=dt
     )
     cumulate_income_sheets.sort_index(ascending=True, inplace=True)
-    balance_sheets = fin_stmt.balance_sheet.read_sql(conn=connection, start_time=dt)
+    balance_sheets = balance_sheet.read_sql(conn=connection, start_time=dt)
     balance_sheets.sort_index(ascending=True, inplace=True)
-    cash_flows = fin_stmt.cash_flow.read_sql(conn=connection, start_time=dt)
+    cash_flows = cash_flow.read_sql(conn=connection, start_time=dt)
     cash_flows.sort_index(ascending=True, inplace=True)
     datatime_range["max_fin_stmt"] = max(ts for ts, code in balance_sheets.index)
     datatime_range["min_fin_stmt"] = min(ts for ts, code in balance_sheets.index)
 
 
-# New DB session
-_connection = util.get_db_proxy().connection
-_sqlite3 = util.get_sqlite3()
+def refresh_balance_sheet_metatime(
+    connection, dt: datetime.datetime = _FIN_DATA_START_DT,
+):
+    global balance_sheet_metatime
 
-# Refresh data from DB
-refresh_securities(_connection)
-refresh_prices(_connection)
-refresh_peras(_connection)
-refresh_revenues(_connection)
-refresh_fin_stmt(_sqlite3)
+    sql_stmt = f"""
+        SELECT `code`, `ts`, `created_ts`
+        FROM `{balance_sheet.BALANCE_TB_NAME}_metatime`
+        WHERE `{util.TIME_COL_NAME}` >= '{dt}';
+    """
+    balance_sheet_metatime = pandas.read_sql(
+        sql=sql_stmt,
+        con=connection,
+        index_col=util.TIMED_INDEX_COLs,
+        parse_dates=[util.TIME_COL_NAME],
+    )
 
-# Close DB session
-_connection.close()
-_sqlite3.close()
 
 # These column name lists are used to organize and refer to specific columns in data tables or
 # for calculations and analysis.
@@ -154,29 +163,31 @@ ANAL_PERA_COLs = [
     "股價淨值比",  # TB Column
     "殖利率(%)",  # TB Column
     "股利年度",  # TB Column
-    "股利連續N年",  # TB Column
+    "股利連續N年",  # 分析場
 ]
 # Analysis field names that can be calculated based on prices data
 ANAL_PRICE_COLs = [
-    "成交股數(M)",  # 分析場（平均值）
-    "成交筆數(M)",  # 分析場（平均值）
-    "成交金額(M)",  # 分析場（平均值）
+    "ts",  # index
+    "日均成交張數",  # 分析場（平均值）
+    "日均成交筆數",  # 分析場（平均值）
+    "日均成交金額",  # 分析場（平均值）
 ]
 # Analysis field names that can be calculated based on revenue data
 ANAL_REVENUE_COLs = ["updated_ts", "當月營收", "YoY", "MoM", "IsM3"]
 # Analysis field names that can be calculated based on "fin_stmt" data
-ANAL_QUARTER_COLs = ["本期淨利（淨損）", "YoY", "QoQ", "IsQ3"] + [
+ANAL_QUARTER_COLs = ["本期淨利（淨損）", "YoYQ", "QoQ", "IsQ3"] + [
     "YoE",
     "QoE",
     "IsE3",
 ]
 # Historical column names related to "fin_stmt"
-_HIS_PROFIT_COLs = [
-    "GPM",
-    "NIM",
-    "ROA",
-    "ROE",
-    "DBR",
+ANAL_FIN_STMT_COLs = [
+    "created_ts",  # Time tracking of financial data changes
+    "GPM",  # Sum the latest four quarters
+    "NIM",  # Sum the latest four quarters
+    "ROA",  # Sum the latest four quarters
+    "ROE",  # Sum the latest four quarters
+    "DBR",  # Avg the latest four quarters
 ]
 # Column names related to EPS analysis
 ANAL_EPS_COLs = [
@@ -210,7 +221,7 @@ CUST_ANAL_PROFIT_COLs = [
 # Column names related to profit analysis
 ANAL_PROFIT_COLs = (
     ANAL_EPS_COLs
-    + _HIS_PROFIT_COLs
+    + ANAL_FIN_STMT_COLs
     + [
         "EPS(0)+",
         "GPM+",
@@ -218,9 +229,9 @@ ANAL_PROFIT_COLs = (
         "ROA+",
         "ROE+",
         "DBR+",
-        "股本+",
-        "資產+",
-        "權益+",
+        "股本(%)+",
+        "資產(%)+",
+        "權益(%)+",
     ]
     + ANAL_QUARTER_COLs
     + CUST_ANAL_PROFIT_COLs
@@ -242,25 +253,31 @@ def analyze_prices(ts: datetime.datetime = None):
     daily_price = prices.loc[ts].copy()
 
     # Init ANAL_PRICE_COLs
-    assert set(ANAL_PRICE_COLs) == {"成交股數(M)", "成交筆數(M)", "成交金額(M)"}
-    daily_price["成交股數(M)"] = 0
-    daily_price["成交筆數(M)"] = 0
-    daily_price["成交金額(M)"] = 0
+    assert set(ANAL_PRICE_COLs) == {
+        "ts",
+        "日均成交張數",
+        "日均成交筆數",
+        "日均成交金額",
+    }
+    daily_price["ts"] = ts  # index to data
+    daily_price["日均成交張數"] = 0
+    daily_price["日均成交筆數"] = 0
+    daily_price["日均成交金額"] = 0
 
     # Calculates ANAL_PRICE_COLs
     reversed_index_prices = reverse_df_index(prices)
     for code, row in daily_price.iterrows():
-        daily_price.loc[code, "成交股數(M)"] = int(
-            reversed_index_prices.loc[code, "成交股數"].mean()
+        daily_price.loc[code, "日均成交張數"] = int(
+            reversed_index_prices.loc[code, "成交股數"].mean() / 1000
         )
-        daily_price.loc[code, "成交筆數(M)"] = int(
+        daily_price.loc[code, "日均成交筆數"] = int(
             reversed_index_prices.loc[code, "成交筆數"].mean()
         )
-        daily_price.loc[code, "成交金額(M)"] = int(
+        daily_price.loc[code, "日均成交金額"] = int(
             reversed_index_prices.loc[code, "成交金額"].mean()
         )
 
-    return daily_price
+    return daily_price[TB_PRICE_COLs + ANAL_PRICE_COLs]
 
 
 def analyze_peras():
@@ -293,19 +310,20 @@ def analyze_peras():
                 break
         anal_per.loc[code, "股利連續N年"] = year_count
 
-    return anal_per
+    return anal_per[ANAL_PERA_COLs]
 
 
 def calculate_his_fin_stmt(columns: list[str] = None) -> pandas.DataFrame:
     """Perform calculations and analysis on the financial data"""
     global his_profits
-    columns = columns or _HIS_PROFIT_COLs + CUST_ANAL_PROFIT_COLs
+    columns = columns or ANAL_FIN_STMT_COLs + CUST_ANAL_PROFIT_COLs
 
     # 損益表["營業毛利（毛損）", "本期淨利（淨損）", "營業收入合計"]
     # 加入資產負債表["普通股股本", "資產總計", "權益總額"]
-    tmp = income_sheets[TB_INCOME_SHEET_COLs].merge(
-        balance_sheets[TB_BALANCE_SHEET_COLs], on=util.TIMED_INDEX_COLs
-    )
+    tmp = balance_sheet_metatime.merge(balance_sheets, on=util.TIMED_INDEX_COLs)[
+        TB_BALANCE_SHEET_COLs + ["created_ts"]
+    ]
+    tmp = tmp.merge(income_sheets[TB_INCOME_SHEET_COLs], on=util.TIMED_INDEX_COLs)
     tmp["ROA"] = tmp["本期淨利（淨損）"] / tmp["資產總計"] * 100
     tmp["ROE"] = tmp["本期淨利（淨損）"] / tmp["權益總額"] * 100
     tmp["DBR"] = (tmp["資產總計"] - tmp["權益總額"]) / tmp["資產總計"] * 100
@@ -395,12 +413,6 @@ def reverse_df_index(df: pandas.DataFrame) -> pandas.DataFrame:
     return tmp
 
 
-analyze_prices()
-calculate_his_fin_stmt()
-analyze_revenue()
-analyze_peras()
-
-
 def analyze_base(
     daily_ts: datetime.datetime = None, ifrs_ts: datetime.datetime = None
 ) -> pandas.DataFrame:
@@ -442,7 +454,7 @@ def analyze_profit(
     ifrs_iter = util.IFRSDateIter(ifrs_dt=ifrs_ts)
 
     # Based on pera_df
-    tmp = anal_per.merge(
+    tmp = anal_per[ANAL_PERA_COLs].merge(
         his_profits.loc[ifrs_iter.current_ifrs_dt()],  # 最近一季 ifrs date
         on=[util.SECURITY_ID_NAME],
         how="outer",
@@ -532,7 +544,7 @@ def analyze_profit(
             "DBR_q2",
             "DBR_q3",
         ]
-    ].sum(axis=1)
+    ].mean(axis=1)
 
     tmp["EPS(0)+"] = tmp["E(0)"] - tmp["E(1)"]
     tmp["GPM+"] = tmp["GPM(0)"] - tmp["GPM_q1"]
@@ -541,11 +553,13 @@ def analyze_profit(
     tmp["ROE+"] = tmp["ROE(0)"] - tmp["ROE_q1"]
     tmp["DBR+"] = tmp["DBR(0)"] - tmp["DBR_q1"]
 
-    tmp["股本+"] = tmp["普通股股本"] - tmp["普通股股本_q1"]
-    tmp["資產+"] = tmp["資產總計"] - tmp["資產總計_q1"]
-    tmp["權益+"] = tmp["權益總額"] - tmp["權益總額_q1"]
+    tmp["股本(%)+"] = (
+        (tmp["普通股股本"] - tmp["普通股股本_q1"]) / tmp["普通股股本_q1"] * 100
+    )
+    tmp["資產(%)+"] = (tmp["資產總計"] - tmp["資產總計_q1"]) / tmp["資產總計_q1"] * 100
+    tmp["權益(%)+"] = (tmp["權益總額"] - tmp["權益總額_q1"]) / tmp["權益總額_q1"] * 100
 
-    tmp["YoY"] = (
+    tmp["YoYQ"] = (
         (tmp["本期淨利（淨損）"] - tmp["本期淨利（淨損）_q4"])
         / tmp["本期淨利（淨損）_q4"]
         * 100
@@ -565,3 +579,27 @@ def analyze_profit(
 
     anal_profit = tmp
     return anal_profit[columns]
+
+
+# New DB session
+_connection = util.DB_ENGINE.connect()
+_sqlite3 = util.get_sqlite3()
+# Refresh data from DB
+refresh_securities(_connection)
+refresh_prices(_connection)
+refresh_peras(_connection)
+refresh_revenues(_connection)
+# Store financial data in SQLite3 because its schema may change over time. SQLite3 can adapt to these changes.
+refresh_fin_stmt(_sqlite3)
+# We use MySQL to track the change time of the financial data stored in SQLite3
+refresh_balance_sheet_metatime(_connection)
+# Close DB session
+_connection.close()
+_sqlite3.close()
+
+
+# Performs analysis
+analyze_prices()
+calculate_his_fin_stmt()
+analyze_revenue()
+analyze_peras()

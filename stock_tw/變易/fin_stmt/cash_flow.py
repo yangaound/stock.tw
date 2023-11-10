@@ -6,7 +6,7 @@ import MySQLdb
 import pandas
 from dateutil.relativedelta import relativedelta
 
-from stock_tw.變易 import util
+from stock_tw import util
 
 CASH_TB_NAME = "cash_flow"
 CASH_TB_COLs: list[str] = util.CONF["現金流量表頭"]

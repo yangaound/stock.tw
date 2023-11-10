@@ -8,7 +8,8 @@ import traceback
 import numpy as np
 import pytz
 
-from stock_tw.變易 import price, util
+from stock_tw.變易 import price
+from stock_tw import util
 
 
 def update_revenue_db(ts: datetime.datetime):

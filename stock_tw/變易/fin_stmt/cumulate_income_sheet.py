@@ -6,7 +6,7 @@ import MySQLdb
 import pandas
 from dateutil.relativedelta import relativedelta
 
-from stock_tw.變易 import util
+from stock_tw import util
 
 CUMULATE_INCOME_TB_NAME = "cumulate_income_sheet"
 CUMULATE_INCOME_TB_COLs: list[str] = util.CONF["累計損益表頭"]
